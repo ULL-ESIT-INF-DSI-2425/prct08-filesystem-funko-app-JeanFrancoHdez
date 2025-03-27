@@ -1,112 +1,66 @@
-import { Funko } from './funko.js';
-import chalk from 'chalk';
+import { Funko } from "./funko.js";
+import * as fs from "fs";
+import * as path from "path";
 
 export class FunkoCollection {
-  private _funkos: Funko[] = [];
+  private funkos: Funko[] = [];
+  private directory: string = "";
 
-  // Getter para _funkos
-  get funkos(): Funko[] {
-    return this._funkos;
+  // Establecer el directorio donde se almacenarán los Funkos
+  setDirectory(dir: string): void {
+    this.directory = dir;
   }
 
-  // Setter para _funkos
-  set funkos(_funkos: Funko[]) {
-    this._funkos = _funkos;
-  }
-
-  public obtenerFunko(id: number): Funko | undefined {
-    return this.funkos.find((funko) => funko.id === id);
-  }
-
-  // Añadir un Funko
-  public agregarFunko(funko: Funko): void {
-    if (this._funkos.some((f) => f.id === funko.id)) {
-      console.log(chalk.red("Error: Ya existe un Funko con el mismo ID."));
-    } else {
-      this._funkos.push(funko);
-      console.log(chalk.green("Funko añadido correctamente."));
-    }
-  }
-
-  // Modificar un Funko
-  public modificarFunko(funko: Funko): void {
-    const index = this._funkos.findIndex((f) => f.id === funko.id);
-    if (index !== -1) {
-      this._funkos[index] = funko;
-      console.log(chalk.green("Funko modificado correctamente."));
-    } else {
-      console.log(chalk.red("Error: No existe un Funko con ese ID."));
-    }
-  }
-
-  // Eliminar un Funko
-  public eliminarFunko(id: number): void {
-    const index = this._funkos.findIndex((f) => f.id === id);
-    if (index !== -1) {
-      this._funkos.splice(index, 1);
-      console.log(chalk.green("Funko eliminado correctamente."));
-    } else {
-      console.log(chalk.red("Error: No existe un Funko con ese ID."));
-    }
-  }
-
-  // Listar _Funkos
-  public listarFunkos(): void {
-    if (this._funkos.length === 0) {
-      console.log(chalk.red("No hay _Funkos en la lista."));
-      return;
-    }
-
-    this._funkos.forEach((funko) => {
-      const color = this.obtenerColorValorMercado(funko.valorMercado);
-      console.log(`--------------------------------`)
-      console.log(`
-        ID: ${funko.id}
-        Nombre: ${funko.nombre}
-        Descripción: ${funko.descripcion}
-        Tipo: ${funko.tipo}
-        Género: ${funko.genero}
-        Franquicia: ${funko.franquicia}
-        Número: ${funko.numero}
-        Exclusivo: ${funko.exclusivo ? "Sí" : "No"}
-        Características Especiales: ${funko.caracteristicasEspeciales}
-        Valor de Mercado: ${color(funko.valorMercado.toString())}
-      `);
+  // Cargar Funkos desde los archivos JSON en el directorio
+  cargarFunkos(callback: (err: NodeJS.ErrnoException | null) => void): void {
+    fs.readdir(this.directory, (err, files) => {
+      if (err) {
+        callback(err);
+      } else {
+        this.funkos = [];
+        let pending = files.length;
+        if (pending === 0) {
+          callback(null);
+          return;
+        }
+        files.forEach((file) => {
+          const filePath = path.join(this.directory, file);
+          fs.readFile(filePath, "utf-8", (err, data) => {
+            if (!err) {
+              try {
+                const funko = JSON.parse(data) as Funko;
+                this.funkos.push(funko);
+              } catch (parseErr) {
+                console.error(`Error al parsear el archivo ${file}:`, parseErr.message);
+              }
+            }
+            pending -= 1;
+            if (pending === 0) {
+              callback(null);
+            }
+          });
+        });
+      }
     });
   }
 
-  // Mostrar información de un Funko
-  public mostrarFunko(id: number): void {
-    const funko = this._funkos.find((f) => f.id === id);
-    if (funko) {
-      const color = this.obtenerColorValorMercado(funko.valorMercado);
-      console.log(`
-        ID: ${funko.id}
-        Nombre: ${funko.nombre}
-        Descripción: ${funko.descripcion}
-        Tipo: ${funko.tipo}
-        Género: ${funko.genero}
-        Franquicia: ${funko.franquicia}
-        Número: ${funko.numero}
-        Exclusivo: ${funko.exclusivo ? "Sí" : "No"}
-        Características Especiales: ${funko.caracteristicasEspeciales}
-        Valor de Mercado: ${color(funko.valorMercado.toString())}
-      `);
-    } else {
-      console.log(chalk.red("Error: No existe un Funko con ese ID."));
-    }
+  // Agregar un Funko a la colección y guardarlo en un archivo JSON
+  agregarFunko(funko: Funko, callback: (err: NodeJS.ErrnoException | null) => void): void {
+    this.funkos.push(funko);
+    const filePath = path.join(this.directory, `${funko.id}.json`);
+    fs.writeFile(filePath, JSON.stringify(funko, null, 2), (err) => {
+      if (err) {
+        callback(err);
+      } else {
+        callback(null);
+      }
+    });
   }
 
-  // Obtener color según el valor de mercado
-  private obtenerColorValorMercado(valor: number): (text: string) => string {
-    if (valor > 100) {
-      return chalk.green;
-    } else if (valor > 50) {
-      return chalk.yellow;
-    } else if (valor > 20) {
-      return chalk.blue;
-    } else {
-      return chalk.red;
-    }
+  // Listar todos los Funkos de la colección
+  listarFunkos(): void {
+    this.funkos.forEach((funko) => {
+      console.log(funko);
+    });
   }
 }

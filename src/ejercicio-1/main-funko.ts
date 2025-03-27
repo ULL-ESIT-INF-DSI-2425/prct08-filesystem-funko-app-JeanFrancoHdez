@@ -3,9 +3,46 @@ import { Funko } from "./funko.js";
 import { FunkoCollection } from "./funkoCollection.js";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
+import * as fs from "fs";
+import * as path from "path";
 
-// Instancia de la colección de Funkos
-const funkoCollection = new FunkoCollection();
+// Función para verificar si un directorio existe
+const verificarDirectorio = (dir: string, callback: (err: NodeJS.ErrnoException | null) => void) => {
+  fs.stat(dir, (err, stats) => {
+    if (err) {
+      if (err.code === "ENOENT") {
+        // El directorio no existe, crearlo
+        fs.mkdir(dir, { recursive: true }, callback);
+      } else {
+        callback(err);
+      }
+    } else if (!stats.isDirectory()) {
+      callback(new Error(`${dir} no es un directorio válido.`));
+    } else {
+      callback(null);
+    }
+  });
+};
+
+// Función para obtener la colección de Funkos de un usuario
+const obtenerColeccionUsuario = (user: string, callback: (err: NodeJS.ErrnoException | null, collection?: FunkoCollection) => void) => {
+  const userDir = path.join(__dirname, "data", user);
+  verificarDirectorio(userDir, (err) => {
+    if (err) {
+      callback(err);
+    } else {
+      const collection = new FunkoCollection();
+      collection.setDirectory(userDir); // Assuming a method like this exists to set the directory
+      collection.cargarFunkos((err) => {
+        if (err) {
+          callback(err);
+        } else {
+          callback(null, collection);
+        }
+      });
+    }
+  });
+};
 
 // Comando para añadir un Funko
 yargs(hideBin(process.argv))
@@ -26,82 +63,49 @@ yargs(hideBin(process.argv))
       value: { type: "number", demandOption: true, describe: "Valor de mercado del Funko" },
     },
     (argv) => {
-      const nuevoFunko = new Funko(
-        argv.id,
-        argv.name,
-        argv.desc,
-        argv.type as Tipo,
-        argv.genre as Genero,
-        argv.franchise,
-        argv.number,
-        argv.exclusive,
-        argv.special,
-        argv.value
-      );
-      funkoCollection.agregarFunko(nuevoFunko);
-    }
-  )
-  .command(
-    "modify",
-    "Modificar un Funko existente en la colección",
-    {
-      id: { type: "number", demandOption: true, describe: "ID del Funko a modificar" },
-      name: { type: "string", describe: "Nuevo nombre del Funko" },
-      desc: { type: "string", describe: "Nueva descripción del Funko" },
-      type: { type: "string", describe: "Nuevo tipo del Funko" },
-      genre: { type: "string", describe: "Nuevo género del Funko" },
-      franchise: { type: "string", describe: "Nueva franquicia del Funko" },
-      number: { type: "number", describe: "Nuevo número del Funko en la franquicia" },
-      exclusive: { type: "boolean", describe: "Si el Funko es exclusivo" },
-      special: { type: "string", describe: "Nuevas características especiales del Funko" },
-      value: { type: "number", describe: "Nuevo valor de mercado del Funko" },
-    },
-    (argv) => {
-      const funkoExistente = funkoCollection.obtenerFunko(argv.id);
-      if (funkoExistente) {
-        if (argv.name) funkoExistente.nombre = argv.name;
-        if (argv.desc) funkoExistente.descripcion = argv.desc;
-        if (argv.type) funkoExistente.tipo = argv.type as Tipo;
-        if (argv.genre) funkoExistente.genero = argv.genre as Genero;
-        if (argv.franchise) funkoExistente.franquicia = argv.franchise;
-        if (argv.number) funkoExistente.numero = argv.number;
-        if (argv.exclusive !== undefined) funkoExistente.exclusivo = argv.exclusive;
-        if (argv.special) funkoExistente.caracteristicasEspeciales = argv.special;
-        if (argv.value) funkoExistente.valorMercado = argv.value;
-        funkoCollection.modificarFunko(funkoExistente);
-      } else {
-        console.log("Error: No existe un Funko con ese ID.");
-      }
-    }
-  )
-  .command(
-    "remove",
-    "Eliminar un Funko de la colección",
-    {
-      id: { type: "number", demandOption: true, describe: "ID del Funko a eliminar" },
-    },
-    (argv) => {
-      funkoCollection.eliminarFunko(argv.id);
+      obtenerColeccionUsuario(argv.user, (err, funkoCollection) => {
+        if (err) {
+          console.error("Error al obtener la colección del usuario:", err.message);
+        } else if (funkoCollection) {
+          const nuevoFunko = new Funko(
+            argv.id,
+            argv.name,
+            argv.desc,
+            argv.type as Tipo,
+            argv.genre as Genero,
+            argv.franchise,
+            argv.number,
+            argv.exclusive,
+            argv.special,
+            argv.value
+          );
+          funkoCollection.agregarFunko(nuevoFunko, (err) => {
+            if (err) {
+              console.error("Error al agregar el Funko:", err.message);
+            } else {
+              console.log("Funko agregado exitosamente.");
+            }
+          });
+        }
+      });
     }
   )
   .command(
     "list",
     "Listar todos los Funkos de la colección",
-    {},
-    () => {
-      funkoCollection.listarFunkos();
-    }
-  )
-  .command(
-    "show",
-    "Mostrar información de un Funko específico",
     {
-      id: { type: "number", demandOption: true, describe: "ID del Funko a mostrar" },
+      user: { type: "string", demandOption: true, describe: "Nombre del usuario" },
     },
     (argv) => {
-      funkoCollection.mostrarFunko(argv.id);
+      obtenerColeccionUsuario(argv.user, (err, funkoCollection) => {
+        if (err) {
+          console.error("Error al obtener la colección del usuario:", err.message);
+        } else if (funkoCollection) {
+          funkoCollection.listarFunkos();
+        }
+      });
     }
   )
   .demandCommand(1, "Debes proporcionar al menos un comando.")
   .help()
-  .argv;
+  .parse();
