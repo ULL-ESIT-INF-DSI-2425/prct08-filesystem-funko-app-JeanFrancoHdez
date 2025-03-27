@@ -33,7 +33,7 @@ function watchMonitor(dirObserved: string, dirCopies: string): void {
 
       console.log(`Monitorizando cambios en: ${dirObserved}`);
       watch(dirObserved, (eventType, filename) => {
-        if (filename) {
+        if (filename && eventType === 'change') {
           const filePath = path.join(dirObserved, filename);
 
           fs.stat(filePath, (err, stats) => {
